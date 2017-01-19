@@ -154,7 +154,7 @@ func (w *SpamModule) checkRaid(info *GuildInfo, m *discordgo.Member) {
 		if sb.Debug {
 			ch, _ = sb.DebugChannels[info.Guild.ID]
 		}
-		info.SendMessage(ch, "<@&"+SBitoa(info.config.Basic.AlertRole)+"> Possible Raid Detected!\n```"+strings.Join(s, "\n")+"```")
+		info.SendMessage(ch, "<@&"+SBitoa(info.config.Basic.AlertRole)+"> Possible Raid Detected! Use `!autosilence all` to silence them!\n```"+strings.Join(s, "\n")+"```")
 	}
 }
 func (w *SpamModule) OnGuildMemberAdd(info *GuildInfo, m *discordgo.Member) {
@@ -167,6 +167,9 @@ func (w *SpamModule) OnGuildMemberAdd(info *GuildInfo, m *discordgo.Member) {
 	}
 	if info.config.Spam.AutoSilence == -1 {
 		info.SendMessage(SBitoa(info.config.Basic.ModChannel), "<@"+m.User.ID+"> joined the server.")
+	}
+	if info.config.Spam.AutoSilence == -2 {
+		info.SendMessage(SBitoa(info.config.Log.Channel), "<@"+m.User.ID+"> joined the server.")
 	}
 	w.checkRaid(info, m)
 }
@@ -181,9 +184,9 @@ type AutoSilenceCommand struct {
 func (c *AutoSilenceCommand) Name() string {
 	return "AutoSilence"
 }
-func (c *AutoSilenceCommand) Process(args []string, msg *discordgo.Message, info *GuildInfo) (string, bool, *discordgo.MessageEmbed) {
+func (c *AutoSilenceCommand) Process(args []string, msg *discordgo.Message, indices []int, info *GuildInfo) (string, bool, *discordgo.MessageEmbed) {
 	if len(args) < 1 {
-		return "```You must provide an auto silence level (either all, raid, or off).```", false, nil
+		return "```You must provide an auto silence level (either alert, log, all, raid, or off).```", false, nil
 	}
 	switch strings.ToLower(args[0]) {
 	case "all":
@@ -194,11 +197,13 @@ func (c *AutoSilenceCommand) Process(args []string, msg *discordgo.Message, info
 		info.config.Spam.AutoSilence = 0
 	case "alert":
 		info.config.Spam.AutoSilence = -1
+	case "log":
+		info.config.Spam.AutoSilence = -2
 	//case "debug":
 	//	subtract, _ := strconv.ParseInt(args[1], 10, 64)
 	//	c.s.lastraid = time.Now().UTC().Unix() - subtract
 	default:
-		return "```Only all, raid, and off are valid auto silence levels.```", false, nil
+		return "```Only alert, log, all, raid, and off are valid auto silence levels.```", false, nil
 	}
 
 	info.SaveConfig()
@@ -215,13 +220,13 @@ func (c *AutoSilenceCommand) Process(args []string, msg *discordgo.Message, info
 		}
 		return strings.Join(s, "\n") + "```", false, nil
 	}
-	return "```Set the auto silence level to " + strings.ToLower(args[0]) + "```", false, nil
+	return "```Set the auto silence level to " + strings.ToLower(args[0]) + ".```", false, nil
 }
 func (c *AutoSilenceCommand) Usage(info *GuildInfo) *CommandUsage {
 	return &CommandUsage{
 		Desc: "Toggles the auto silence level for anti-spam.",
 		Params: []CommandUsageParam{
-			CommandUsageParam{Name: "all/raid/alert/off", Desc: "All will autosilence all new members. Raid will only silence raiders. Alert does not auto-silence anyone, but sends an alert to the mod channel whenever anyone joins the server. Off disables auto-silence and unsilences everyone.", Optional: false},
+			CommandUsageParam{Name: "all/raid/alert/log/off", Desc: "`all` will autosilence all new members. `raid` will turn on autosilence if a raid is detected (not recommended). `alert` does not auto-silence anyone, but sends an alert to the mod channel whenever anyone joins the server. `log` sends the alerts to the log channel instead. `off` disables auto-silence and unsilences everyone.", Optional: false},
 		},
 	}
 }
@@ -233,7 +238,7 @@ type WipeWelcomeCommand struct {
 func (c *WipeWelcomeCommand) Name() string {
 	return "WipeWelcome"
 }
-func (c *WipeWelcomeCommand) Process(args []string, msg *discordgo.Message, info *GuildInfo) (string, bool, *discordgo.MessageEmbed) {
+func (c *WipeWelcomeCommand) Process(args []string, msg *discordgo.Message, indices []int, info *GuildInfo) (string, bool, *discordgo.MessageEmbed) {
 	ch := SBitoa(info.config.Users.WelcomeChannel)
 	list, err := sb.dg.ChannelMessages(ch, 99, "", "")
 	if err != nil {
